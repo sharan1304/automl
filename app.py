@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from ml_pipeline import run_pipeline, suggest_target
+from ml_pipeline import predict_unseen, run_pipeline, suggest_target
 
 st.set_page_config(page_title="AI Data Scientist", layout="wide")
 
@@ -42,6 +42,8 @@ if file:
         with st.spinner("🔍 AI is analyzing your dataset..."):
             try:
                 result = run_pipeline(df, target)
+                st.session_state["automl_result"] = result
+                st.session_state["automl_target"] = target
 
                 st.success("✅ Analysis Completed")
                 st.info(f"🔍 Problem Type Detected: **{result['problem_type']}**")
@@ -84,6 +86,20 @@ if file:
 
                 st.divider()
 
+                # ---- UNSUPERVISED LEARNING ----
+                st.subheader("🧩 Unsupervised Learning")
+                if result["unsupervised_results"]:
+                    unsupervised_rows = []
+                    for model_name, metrics in result["unsupervised_results"].items():
+                        row = {"Model": model_name}
+                        row.update(metrics)
+                        unsupervised_rows.append(row)
+                    st.dataframe(pd.DataFrame(unsupervised_rows))
+                else:
+                    st.info("Dataset is too small for unsupervised analysis.")
+
+                st.divider()
+
                 # ---- VISUALIZATIONS ----
                 if result["graph_path"] and result["importance_plot"]:
                     v1, v2 = st.columns(2)
@@ -117,3 +133,41 @@ if file:
             except Exception as e:
                 st.error(f"❌ Error: {e}")
                 st.exception(e)
+
+    if "automl_result" in st.session_state:
+        st.divider()
+        st.subheader("🔮 Predict on Unseen Data")
+        st.caption("Upload a new CSV with the same feature columns. If it contains the target column, it will be ignored.")
+
+        unseen_file = st.file_uploader(
+            "Upload Unseen/Test Dataset (CSV)",
+            type=["csv"],
+            key="unseen_file"
+        )
+
+        if unseen_file:
+            unseen_df = pd.read_csv(unseen_file)
+            st.write("Unseen data preview")
+            st.dataframe(unseen_df.head())
+
+            if st.button("🧪 Predict Unseen Data"):
+                try:
+                    prediction_df = predict_unseen(
+                        st.session_state["automl_result"],
+                        unseen_df,
+                        st.session_state.get("automl_target")
+                    )
+
+                    st.success("✅ Predictions generated")
+                    st.dataframe(prediction_df)
+
+                    csv_data = prediction_df.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        "⬇️ Download Predictions CSV",
+                        data=csv_data,
+                        file_name="unseen_predictions.csv",
+                        mime="text/csv"
+                    )
+                except Exception as e:
+                    st.error(f"❌ Prediction error: {e}")
+                    st.exception(e)

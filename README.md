@@ -68,25 +68,7 @@ Demo dataset: diabetes classification
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    A[Upload Dataset] --> B[Dataset Preview]
-    B --> C[AI Dataset Understanding]
-    C --> D[Automatic Preprocessing]
-    D --> E[Target Column Suggestion]
-    E --> F[Problem Type Detection]
-    F --> G[Train and Compare ML Models]
-    G --> H[Best Model Selection]
-    H --> I[Metrics and Evaluation]
-    I --> J[Feature Importance and Visualizations]
-    J --> K[SHAP Explainability]
-    K --> L[Prediction Interface]
-    L --> M[Prediction Explanation]
-    I --> N[PDF Report Generation]
-    C --> O[Dataset Chatbot]
-    I --> O
-    K --> O
-```
+![Architecture](architecture.png)
 
 ### End-to-End Flow
 

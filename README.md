@@ -68,7 +68,7 @@ Demo dataset: diabetes classification
 
 ## Architecture
 
-![Architecture](architecture.png)
+![Architecture](architecture2.png/image.png)
 
 ### End-to-End Flow
 

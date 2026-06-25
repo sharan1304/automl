@@ -1,12 +1,25 @@
-# AI Data Scientist (AutoML)
+# AI Data Scientist – Intelligent AutoML & Explainability Framework
 
-![Python](https://img.shields.io/badge/Python-3.11-blue)
-![Streamlit](https://img.shields.io/badge/Streamlit-App-red)
-![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-orange)
-![SHAP](https://img.shields.io/badge/SHAP-Explainability-green)
-![License](https://img.shields.io/badge/License-MIT-lightgrey)
+[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-App-red)](https://streamlit.io/)
+[![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-orange)](https://scikit-learn.org/)
+[![SHAP](https://img.shields.io/badge/SHAP-Explainability-green)](https://shap.readthedocs.io/)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Coming%20Soon-lightgrey)](#live-demo)
 
 An end-to-end AutoML platform that analyzes datasets, detects the problem type, trains multiple machine learning models, selects the best model, explains predictions using SHAP, generates visualizations, creates PDF reports, and provides an AI-powered dataset chatbot.
+
+---
+
+## Live Demo
+
+The project is ready for deployment on Streamlit Community Cloud.
+
+```text
+Live demo URL: Coming soon
+```
+
+After deployment, replace the badge URL with the live Streamlit app link.
 
 ---
 
@@ -35,6 +48,60 @@ An end-to-end AutoML platform that analyzes datasets, detects the problem type, 
 ### 6. Prediction and Explanation
 
 ![Prediction](screenshots/06_prediction.png)
+
+---
+
+## Results
+
+Demo dataset: diabetes classification
+
+| Metric | Value |
+| --- | --- |
+| Best Model | AdaBoost |
+| Accuracy | 100% |
+| Precision | 1.00 |
+| Recall | 1.00 |
+| F1 Score | 1.00 |
+| Prediction Confidence | 66.01% |
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TD
+    A[Upload Dataset] --> B[Dataset Preview]
+    B --> C[AI Dataset Understanding]
+    C --> D[Automatic Preprocessing]
+    D --> E[Target Column Suggestion]
+    E --> F[Problem Type Detection]
+    F --> G[Train and Compare ML Models]
+    G --> H[Best Model Selection]
+    H --> I[Metrics and Evaluation]
+    I --> J[Feature Importance and Visualizations]
+    J --> K[SHAP Explainability]
+    K --> L[Prediction Interface]
+    L --> M[Prediction Explanation]
+    I --> N[PDF Report Generation]
+    C --> O[Dataset Chatbot]
+    I --> O
+    K --> O
+```
+
+### End-to-End Flow
+
+| Step | System Capability | Output |
+| --- | --- | --- |
+| 1 | Upload CSV dataset | Dataset preview and schema summary |
+| 2 | Understand dataset | Shape, data types, missing values, correlation insights, and duplicate checks |
+| 3 | Preprocess data | Clean, encoded, scaled, model-ready dataset |
+| 4 | Explain dataset | Human-readable dataset summary |
+| 5 | Suggest target | Recommended target column and problem type |
+| 6 | Select best model | Model comparison across multiple algorithms |
+| 7 | Train model | Final trained model ready for prediction |
+| 8 | Predict | Predicted class or value with confidence |
+| 9 | Evaluate | Accuracy, precision, recall, F1, confusion matrix, and other metrics |
+| 10 | Explain and report | SHAP plots, visual insights, PDF report, and chatbot answers |
 
 ---
 
@@ -130,33 +197,28 @@ streamlit run app.py
 
 ---
 
-## How It Works
+## Recommended GitHub Topics
 
-1. Upload a CSV dataset.
-2. The app previews the data and suggests a target column.
-3. The pipeline detects whether the task is classification or regression.
-4. Numeric and categorical features are preprocessed automatically.
-5. Multiple models are trained and compared.
-6. The best model is selected based on performance.
-7. Visualizations, feature importance, and SHAP explanations are generated.
-8. Users can make predictions on custom input values.
-9. The AI chatbot answers questions about the dataset, model, and results.
-10. A PDF report can be generated for sharing.
-
----
-
-## Example Results
-
-In the demo workflow, the platform trains and compares several models on a diabetes classification dataset, selects the best-performing model, displays confusion matrix and feature importance plots, explains model behavior with SHAP, and provides prediction confidence for custom inputs.
+```text
+automl
+machine-learning
+streamlit
+python
+data-science
+shap
+xgboost
+flaml
+explainable-ai
+```
 
 ---
 
 ## Future Improvements
 
-- Add model export and reload controls from the UI.
+- Deploy the app on Streamlit Community Cloud and update the live demo badge.
 - Add experiment tracking for previous runs.
 - Add support for Excel and Parquet uploads.
-- Add deployment templates for Streamlit Community Cloud and Hugging Face Spaces.
+- Add model export and reload controls from the UI.
 - Add more advanced LLM evaluation metrics.
 
 ---

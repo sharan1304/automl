@@ -1,14 +1,16 @@
 from data_preprocess import build_preprocessor
-from model_selector import detect_problem, get_models, get_unsupervised_models
+from model_selector import detect_problem, get_models, get_tuning_params, get_unsupervised_models
 from llm_explainer import explain
+from report_generator import generate_pdf_report
 from visualizer import (
     plot_confusion,
     plot_regression,
     plot_residuals,
-    plot_feature_importance
+    plot_feature_importance,
+    plot_shap_explanations,
 )
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV, KFold, StratifiedKFold, cross_val_score, train_test_split
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -23,6 +25,7 @@ from sklearn.metrics import (
 from sklearn.base import clone
 from sklearn.pipeline import Pipeline
 
+import joblib
 import numpy as np
 import pandas as pd
 
@@ -45,6 +48,97 @@ def suggest_target(df):
             return col
 
     return df.columns[-1]
+
+
+def get_cv_strategy(y, problem_type, max_splits=5):
+    sample_count = len(y)
+    if sample_count < 3:
+        return None
+
+    if problem_type == "classification":
+        min_class = y.value_counts().min()
+        if min_class >= 2:
+            splits = min(max_splits, int(min_class), sample_count)
+            return StratifiedKFold(n_splits=splits, shuffle=True, random_state=42)
+
+    splits = min(max_splits, sample_count)
+    if splits < 2:
+        return None
+    return KFold(n_splits=splits, shuffle=True, random_state=42)
+
+
+def get_cv_score(pipeline, X, y, problem_type, cv):
+    if cv is None:
+        return None
+
+    scoring = "accuracy" if problem_type == "classification" else "neg_root_mean_squared_error"
+    try:
+        scores = cross_val_score(
+            pipeline,
+            X,
+            y,
+            scoring=scoring,
+            cv=cv,
+            error_score=np.nan,
+        )
+    except Exception as e:
+        print(f"Cross validation failed: {e}")
+        return None
+
+    scores = scores[~np.isnan(scores)]
+    if len(scores) == 0:
+        return None
+
+    score = float(np.mean(scores))
+    if problem_type == "regression":
+        score = abs(score)
+    return round(score, 4)
+
+
+def tune_best_model(model_name, pipeline, X_train, y_train, problem_type, cv):
+    params = get_tuning_params(model_name)
+    if not params or cv is None:
+        return pipeline, None
+
+    scoring = "accuracy" if problem_type == "classification" else "neg_root_mean_squared_error"
+    try:
+        search = GridSearchCV(
+            estimator=clone(pipeline),
+            param_grid=params,
+            scoring=scoring,
+            cv=cv,
+            n_jobs=-1,
+            error_score=np.nan,
+        )
+        search.fit(X_train, y_train)
+    except Exception as e:
+        print(f"Hyperparameter tuning skipped for {model_name}: {e}")
+        return pipeline, None
+
+    return search.best_estimator_, search.best_params_
+
+
+def score_predictions(y_test, preds, problem_type):
+    if problem_type == "classification":
+        acc = accuracy_score(y_test, preds)
+        precision = precision_score(y_test, preds, average="weighted", zero_division=0)
+        recall = recall_score(y_test, preds, average="weighted", zero_division=0)
+        f1 = f1_score(y_test, preds, average="weighted", zero_division=0)
+        return {
+            "Accuracy": round(acc, 4),
+            "Precision": round(precision, 4),
+            "Recall": round(recall, 4),
+            "F1": round(f1, 4),
+        }
+
+    rmse = np.sqrt(mean_squared_error(y_test, preds))
+    r2 = r2_score(y_test, preds)
+    mae = mean_absolute_error(y_test, preds)
+    return {
+        "RMSE": round(rmse, 2),
+        "R2": round(r2, 4),
+        "MAE": round(mae, 2)
+    }
 
 
 # ---- MAIN PIPELINE ----
@@ -121,6 +215,7 @@ def run_pipeline(df, target):
 
     results = {}
     model_scores = {}
+    cv = get_cv_strategy(y_train, problem_type)
 
     # ---- Train Supervised Models ----
     for name, model in models.items():
@@ -136,27 +231,11 @@ def run_pipeline(df, target):
             print(f"⚠️ Model {name} failed: {e}")
             continue
 
-        if problem_type == "classification":
-            acc = accuracy_score(y_test, preds)
-            precision = precision_score(y_test, preds, average="weighted", zero_division=0)
-            recall = recall_score(y_test, preds, average="weighted", zero_division=0)
-            f1 = f1_score(y_test, preds, average="weighted", zero_division=0)
-            model_scores[name] = {
-                "Accuracy": round(acc, 4),
-                "Precision": round(precision, 4),
-                "Recall": round(recall, 4),
-                "F1": round(f1, 4),
-            }
-        else:
-            rmse = np.sqrt(mean_squared_error(y_test, preds))
-            r2 = r2_score(y_test, preds)
-            mae = mean_absolute_error(y_test, preds)
-
-            model_scores[name] = {
-                "RMSE": round(rmse, 2),
-                "R2": round(r2, 4),
-                "MAE": round(mae, 2)
-            }
+        model_scores[name] = score_predictions(y_test, preds, problem_type)
+        cv_score = get_cv_score(pipeline, X_train, y_train, problem_type, cv)
+        if cv_score is not None:
+            cv_metric = "CV Accuracy" if problem_type == "classification" else "CV RMSE"
+            model_scores[name][cv_metric] = cv_score
 
         results[name] = {
             "model": pipeline,
@@ -180,7 +259,22 @@ def run_pipeline(df, target):
         )
 
     best_model = results[best_model_name]["model"]
-    preds = results[best_model_name]["preds"]
+    best_model, tuning_params = tune_best_model(
+        best_model_name,
+        best_model,
+        X_train,
+        y_train,
+        problem_type,
+        cv,
+    )
+    preds = best_model.predict(X_test)
+    model_scores[best_model_name] = score_predictions(y_test, preds, problem_type)
+    cv_score = get_cv_score(best_model, X_train, y_train, problem_type, cv)
+    if cv_score is not None:
+        cv_metric = "CV Accuracy" if problem_type == "classification" else "CV RMSE"
+        model_scores[best_model_name][cv_metric] = cv_score
+    if tuning_params:
+        model_scores[best_model_name]["Tuned"] = "Yes"
 
     # ---- Graphs ----
     if problem_type == "classification":
@@ -193,9 +287,12 @@ def run_pipeline(df, target):
 
     # ---- Feature Importance (NO LEAKAGE) ----
     importance_plot = plot_feature_importance(best_model, X_train)
+    shap_summary_plot, shap_waterfall_plot = plot_shap_explanations(best_model, X_train)
 
     # Train the winning pipeline on every row before using it for unseen data.
     best_model.fit(X, y)
+    model_path = "best_model.pkl"
+    joblib.dump(best_model, model_path)
 
     # ---- Unsupervised Learning on Feature Space ----
     unsupervised_results = run_unsupervised_analysis(preprocessor, X)
@@ -228,21 +325,27 @@ def run_pipeline(df, target):
     - Model performance
     """)
 
-    return {
+    result = {
         "dataset_explanation": dataset_explanation,
         "preprocessing_steps": preprocessing_steps,
         "problem_type": problem_type,
         "best_model": best_model_name,
         "best_pipeline": best_model,
+        "model_path": model_path,
+        "tuning_params": tuning_params,
         "feature_columns": X.columns.tolist(),
         "model_scores": model_scores,
         "unsupervised_results": unsupervised_results,
         "graph_path": graph_path,
         "residual_plot": residual_plot,
         "importance_plot": importance_plot,
+        "shap_summary_plot": shap_summary_plot,
+        "shap_waterfall_plot": shap_waterfall_plot,
         "ai_explanation": ai_explanation,
         "graph_explanation": graph_explanation
     }
+    result["report_path"] = generate_pdf_report(result)
+    return result
 
 
 def run_unsupervised_analysis(preprocessor, X):
@@ -308,7 +411,45 @@ def predict_unseen(result, unseen_df, target=None):
         )
 
     X_unseen = data[feature_columns]
-    predictions = result["best_pipeline"].predict(X_unseen)
+    pipeline = result["best_pipeline"]
+    predictions = pipeline.predict(X_unseen)
     output = unseen_df.copy()
     output["Prediction"] = predictions
+
+    if result.get("problem_type") == "classification" and hasattr(pipeline, "predict_proba"):
+        try:
+            probabilities = pipeline.predict_proba(X_unseen)
+            classes = pipeline.classes_
+            best_probability = probabilities.max(axis=1)
+            output["Prediction_Confidence"] = np.round(best_probability, 4)
+            for index, class_name in enumerate(classes):
+                output[f"Probability_{class_name}"] = np.round(probabilities[:, index], 4)
+        except Exception as e:
+            print(f"Prediction probabilities unavailable: {e}")
+
     return output
+
+
+def summarize_prediction_output(prediction_df, max_rows=5):
+    rows = prediction_df.head(max_rows).astype(object).where(
+        pd.notna(prediction_df.head(max_rows)),
+        None,
+    ).to_dict(orient="records")
+    prediction_counts = {
+        str(label): int(count)
+        for label, count in prediction_df["Prediction"].value_counts(dropna=False).items()
+    }
+    confidence_summary = None
+    if "Prediction_Confidence" in prediction_df.columns:
+        confidence_summary = {
+            "min": round(float(prediction_df["Prediction_Confidence"].min()), 4),
+            "mean": round(float(prediction_df["Prediction_Confidence"].mean()), 4),
+            "max": round(float(prediction_df["Prediction_Confidence"].max()), 4),
+        }
+
+    return {
+        "row_count": int(len(prediction_df)),
+        "prediction_counts": prediction_counts,
+        "confidence_summary": confidence_summary,
+        "sample_rows": rows,
+    }

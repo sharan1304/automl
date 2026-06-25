@@ -1,4 +1,10 @@
 .env
+.DS_Store
 venv/
 __pycache__/
 *.pyc
+best_model.pkl
+automl_report.pdf
+shap_summary.png
+shap_waterfall.png
+.automl_artifacts/

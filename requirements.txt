@@ -9,3 +9,7 @@ python-dotenv
 xgboost
 flaml
 shap
+lightgbm
+joblib
+plotly
+reportlab
